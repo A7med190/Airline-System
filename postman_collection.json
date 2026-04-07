@@ -1,0 +1,41 @@
+{
+  "info": {
+    "name": "Airline System API",
+    "description": "Django REST API for Airline System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8000/api/v1", "type": "string"},
+    {"key": "accessToken", "value": "", "type": "string"}
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {"name": "Register", "request": {"method": "POST", "url": "{{baseUrl}}/accounts/register/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"email\": \"user@example.com\", \"password\": \"password123\", \"first_name\": \"John\", \"last_name\": \"Doe\"}"}}},
+        {"name": "Login", "request": {"method": "POST", "url": "{{baseUrl}}/auth/login/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"email\": \"user@example.com\", \"password\": \"password123\"}"}}}
+      ]
+    },
+    {
+      "name": "Flights",
+      "item": [
+        {"name": "List Flights", "request": {"method": "GET", "url": "{{baseUrl}}/flights/", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}]}},
+        {"name": "Search Flights", "request": {"method": "GET", "url": "{{baseUrl}}/flights/search/?origin=JFK&destination=LAX&date=2024-12-01", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}]}}
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {"name": "List Bookings", "request": {"method": "GET", "url": "{{baseUrl}}/bookings/", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}]}},
+        {"name": "Create Booking", "request": {"method": "POST", "url": "{{baseUrl}}/bookings/", "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{accessToken}}"}], "body": {"mode": "raw", "raw": "{\"flight\": \"\", \"passengers\": [{\"name\": \"John Doe\", \"passport\": \"AB123456\"}]}"}}}
+      ]
+    },
+    {
+      "name": "Loyalty",
+      "item": [
+        {"name": "Get Profile", "request": {"method": "GET", "url": "{{baseUrl}}/loyalty/profile/", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}]}},
+        {"name": "Get Miles", "request": {"method": "GET", "url": "{{baseUrl}}/loyalty/miles/", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}]}}
+      ]
+    }
+  ]
+}
