@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+import sentry_sdk
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,6 +21,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "daphne",
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
@@ -27,10 +29,14 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_filters",
     "drf_spectacular",
+    "channels",
+    "django_celery_beat",
+    "django_celery_results",
     "apps.accounts",
     "apps.flights",
     "apps.bookings",
     "apps.loyalty",
+    "apps.core",
 ]
 
 MIDDLEWARE = [
@@ -43,11 +49,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.IdempotencyMiddleware",
+    "apps.core.middleware.GracefulShutdownMiddleware",
 ]
-
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 ROOT_URLCONF = "config.urls"
 
@@ -67,16 +71,24 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = "config.asgi.application"
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")],
+            "capacity": 1500,
+            "expiry": 10,
+        },
+    },
+}
+
 WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "airline_db"),
-        "USER": os.getenv("DB_USER", "postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 
@@ -93,6 +105,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -157,6 +171,7 @@ CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 CACHES = {
     'default': {
@@ -165,6 +180,47 @@ CACHES = {
     }
 }
 
+HEALTH_CHECK = {
+    "LIVEZ_TIMEOUT": 5,
+    "READY_TIMEOUT": 5,
+}
+
+CIRCUIT_BREAKER = {
+    "FAILURE_THRESHOLD": int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")),
+    "RECOVERY_TIMEOUT": int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT", "30")),
+    "EXPECTED_EXCEPTION": Exception,
+}
+
+IDEMPOTENCY = {
+    "KEY_PREFIX": "idempotency",
+    "TIMEOUT": 86400,
+    "HEADER_NAME": "X-Idempotency-Key",
+}
+
+WEBHOOKS = {
+    "DEFAULT_TIMEOUT": 30,
+    "MAX_RETRIES": 3,
+    "RETRY_DELAY": 5,
+}
+
+OUTBOX_PROCESSING_BATCH_SIZE = 100
+
+SSE_NOTIFICATION_CHANNELS = [
+    "bookings",
+    "flights",
+    "loyalty",
+]
+
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[],
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        send_default_pii=False,
+        environment=os.getenv("ENVIRONMENT", "development"),
+    )
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -172,13 +228,32 @@ LOGGING = {
         'verbose': {
             'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
 if DEBUG:
     INSTALLED_APPS += ['debug_toolbar']
     MIDDLEWARE = ['debug_toolbar.middleware.DebugToolbarMiddleware'] + MIDDLEWARE
     INTERNAL_IPS = ['127.0.0.1', 'localhost']
     
-# Debug Toolbar URL config
-if DEBUG:
     def show_toolbar(request):
         return True
     DEBUG_TOOLBAR_CONFIG = {

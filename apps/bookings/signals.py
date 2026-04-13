@@ -19,10 +19,10 @@ def booking_created(sender, instance, created, **kwargs):
         loyalty_account.save()
         
         LoyaltyTransaction.objects.create(
-            account=loyalty_account,
-            transaction_type='EARN',
+            user=user,
+            transaction_type=LoyaltyTransaction.TransactionType.EARNED,
             points=points_earned,
-            description=f'Points earned from booking {instance.booking_code}'
+            description=f'Points earned from booking {instance.booking_reference}'
         )
 
 
@@ -41,10 +41,10 @@ def booking_status_changed(sender, instance, **kwargs):
                             loyalty_account.save()
                             
                             LoyaltyTransaction.objects.create(
-                                account=loyalty_account,
-                                transaction_type='REFUND',
+                                user=instance.user,
+                                transaction_type=LoyaltyTransaction.TransactionType.REFUND,
                                 points=-points_to_refund,
-                                description=f'Points refunded for cancelled booking {instance.booking_code}'
+                                description=f'Points refunded for cancelled booking {instance.booking_reference}'
                             )
         except Booking.DoesNotExist:
             pass

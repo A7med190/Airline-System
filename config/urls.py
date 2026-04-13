@@ -20,6 +20,8 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
+    path("api/notifications/", include("apps.core.sse_urls")),
+    path("api/webhooks/", include("apps.core.webhook_urls")),
 ]
 
 if settings.DEBUG:
